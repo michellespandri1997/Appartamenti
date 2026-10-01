@@ -29,6 +29,20 @@ PROPERTIES = {
         "descrizione": "La città da vivere tra i canali e le vie dei Navigli.",
     },
 }
+SAMPLE_RESERVATIONS = {
+    "Brera Loft": {
+        "check_in": TODAY + timedelta(days=20),
+        "check_out": TODAY + timedelta(days=23),
+    },
+    "Navigli Studio": {
+        "check_in": TODAY + timedelta(days=27),
+        "check_out": TODAY + timedelta(days=31),
+    },
+}
+
+
+def format_date(value: date, language: str) -> str:
+    return value.strftime("%d/%m/%Y" if language == "it" else "%b %d, %Y")
 
 
 def euro(value: int) -> str:
@@ -45,8 +59,14 @@ COPY = {
         "starting_at": "Da",
         "per_night": "a notte",
         "search_title": "Trova il tuo soggiorno",
-        "search_caption": "Scegli le date e inviaci una richiesta. La disponibilità sarà confermata dal proprietario.",
+        "search_caption": "Esempio: il calendario mostra un periodo occupato per ogni appartamento. Le altre date sono libere nella demo.",
         "property": "Appartamento",
+        "availability_title": "Disponibilità di esempio",
+        "available": "Disponibile",
+        "available_until": "Check-out entro il {date}",
+        "available_from": "Dal {date}",
+        "unavailable": "Occupato",
+        "unavailable_period": "Dal {start} al {end}",
         "check_in": "Check-in",
         "check_out": "Check-out",
         "guests": "Ospiti",
@@ -54,12 +74,13 @@ COPY = {
         "guest_many": "{count} ospiti",
         "search_button": "Calcola il preventivo",
         "checkout_error": "Il check-out deve essere successivo al check-in.",
+        "unavailable_error": "Date non disponibili per {property}: l'appartamento è occupato dal {start} al {end}. Scegli altre date.",
         "guest_limit": "{property} può ospitare al massimo {count} persone.",
         "quote_title": "Il tuo soggiorno",
         "nights_one": "1 notte",
         "nights_many": "{count} notti",
         "total": "Totale indicativo",
-        "quote_note": "Stima dimostrativa: la disponibilità non è verificata in tempo reale. Imposte ed eventuali extra non sono inclusi.",
+        "quote_note": "Disponibilità simulata a scopo dimostrativo, non collegata a prenotazioni reali. Imposte ed eventuali extra non sono inclusi.",
         "request_title": "Invia una richiesta",
         "guest_name": "Nome e cognome",
         "email": "Email",
@@ -83,8 +104,14 @@ COPY = {
         "starting_at": "From",
         "per_night": "per night",
         "search_title": "Find your stay",
-        "search_caption": "Choose your dates and send a request. The owner will confirm availability.",
+        "search_caption": "Example: the calendar shows one booked period for each apartment. Other dates are free in this demo.",
         "property": "Apartment",
+        "availability_title": "Sample availability",
+        "available": "Available",
+        "available_until": "Check-out by {date}",
+        "available_from": "From {date}",
+        "unavailable": "Booked",
+        "unavailable_period": "{start} to {end}",
         "check_in": "Check-in",
         "check_out": "Check-out",
         "guests": "Guests",
@@ -92,12 +119,13 @@ COPY = {
         "guest_many": "{count} guests",
         "search_button": "Get an estimate",
         "checkout_error": "Check-out must be after check-in.",
+        "unavailable_error": "Dates unavailable for {property}: the apartment is booked from {start} to {end}. Choose different dates.",
         "guest_limit": "{property} accommodates up to {count} guests.",
         "quote_title": "Your stay",
         "nights_one": "1 night",
         "nights_many": "{count} nights",
         "total": "Estimated total",
-        "quote_note": "Demo estimate: availability is not checked in real time. Taxes and any extras are not included.",
+        "quote_note": "Availability is simulated for demonstration and is not connected to real bookings. Taxes and any extras are not included.",
         "request_title": "Send an enquiry",
         "guest_name": "Full name",
         "email": "Email address",
@@ -158,8 +186,24 @@ for column, (property_name, details) in zip(property_columns, PROPERTIES.items()
 st.header(text["search_title"], icon=":material/calendar_month:")
 st.caption(text["search_caption"])
 
+property_name = st.selectbox(text["property"], list(PROPERTIES), key="search_property")
+reservation = SAMPLE_RESERVATIONS[property_name]
+st.caption(text["availability_title"])
+availability_columns = st.columns(3)
+with availability_columns[0]:
+    st.badge(text["available"], icon=":material/check_circle:", color="green")
+    st.caption(text["available_until"].format(date=format_date(reservation["check_in"], language)))
+with availability_columns[1]:
+    st.badge(text["unavailable"], icon=":material/event_busy:", color="red")
+    st.caption(text["unavailable_period"].format(
+        start=format_date(reservation["check_in"], language),
+        end=format_date(reservation["check_out"], language),
+    ))
+with availability_columns[2]:
+    st.badge(text["available"], icon=":material/check_circle:", color="green")
+    st.caption(text["available_from"].format(date=format_date(reservation["check_out"], language)))
+
 with st.form("stay_search"):
-    property_name = st.selectbox(text["property"], list(PROPERTIES), key="search_property")
     date_columns = st.columns(2)
     with date_columns[0]:
         check_in = st.date_input(
@@ -191,6 +235,12 @@ if search_submitted:
         st.error(text["checkout_error"])
     elif guests > PROPERTIES[property_name]["ospiti"]:
         st.error(text["guest_limit"].format(property=property_name, count=PROPERTIES[property_name]["ospiti"]))
+    elif check_in < reservation["check_out"] and check_out > reservation["check_in"]:
+        st.error(text["unavailable_error"].format(
+            property=property_name,
+            start=format_date(reservation["check_in"], language),
+            end=format_date(reservation["check_out"], language),
+        ))
     else:
         nights = (check_out - check_in).days
         nightly_rate = PROPERTIES[property_name]["tariffa"]
